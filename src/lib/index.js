@@ -1,8 +1,2 @@
-import Example from './components/Example';
-import SecondExample from './components/SecondExample';
-
-export default Example;
-
-export {
-  SecondExample,
-};
+export { default as AnimatingStates } from "./components/AnimatingStates";
+export { default as State } from "./components/State";
