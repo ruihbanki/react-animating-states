@@ -8,7 +8,15 @@ import {
 } from "./animatingStatesUtils";
 
 const AnimatingStates = React.memo(props => {
-  const { animateOnMount, children, duration, state, ...others } = props;
+  const {
+    animateOnMount,
+    children,
+    duration,
+    state,
+    onAnimateStart,
+    onAnimateEnd,
+    ...others
+  } = props;
 
   const forceUpdate = useForceUpdate();
 
@@ -41,6 +49,7 @@ const AnimatingStates = React.memo(props => {
   };
 
   useLayoutEffect(() => {
+    const prevState = previousStateRef.current;
     previousStateRef.current = state;
 
     if (!animateOnMount && !updatingRef.current) {
@@ -53,15 +62,25 @@ const AnimatingStates = React.memo(props => {
       ? currentRef.current.offsetHeight
       : 0;
 
+    onAnimateStart(prevState, state);
+
     animateRoot(rootRef, prevHeight, currentHeight, duration, () => {
       previousStateRef.current = state;
+      onAnimateEnd(prevState, state);
       forceUpdate();
     });
 
     animatePrev(prevRef, duration);
 
     animateCurrent(currentRef, prevHeight, duration);
-  }, [animateOnMount, state, duration, forceUpdate]);
+  }, [
+    animateOnMount,
+    state,
+    duration,
+    forceUpdate,
+    onAnimateStart,
+    onAnimateEnd
+  ]);
 
   if (state === null && previousStateRef.current === null) {
     return null;
@@ -79,14 +98,18 @@ AnimatingStates.propTypes = {
   animateOnMount: PropTypes.bool,
   children: PropTypes.node,
   duration: PropTypes.number,
-  state: PropTypes.string
+  state: PropTypes.string,
+  onAnimateStart: PropTypes.func,
+  onAnimateEnd: PropTypes.func
 };
 
 AnimatingStates.defaultProps = {
   animateOnMount: false,
   children: null,
   duration: 200,
-  state: null
+  state: null,
+  onAnimateStart: () => {},
+  onAnimateEnd: () => {}
 };
 
 export default AnimatingStates;
