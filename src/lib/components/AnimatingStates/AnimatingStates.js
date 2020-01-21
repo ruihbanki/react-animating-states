@@ -1,4 +1,4 @@
-import React, { useRef, useLayoutEffect } from "react";
+import React, { useRef, useLayoutEffect, useCallback } from "react";
 import PropTypes from "prop-types";
 import useForceUpdate from "./useForceUpdate";
 import {
@@ -7,92 +7,103 @@ import {
   animateCurrent
 } from "./animatingStatesUtils";
 
-const AnimatingStates = React.memo(props => {
-  const {
-    animateOnMount,
-    children,
-    duration,
-    state,
-    onAnimateStart,
-    onAnimateEnd,
-    ...others
-  } = props;
+const AnimatingStates = React.memo(
+  React.forwardRef((props, ref) => {
+    const {
+      animateOnMount,
+      children,
+      duration,
+      state,
+      onAnimateStart,
+      onAnimateEnd,
+      ...others
+    } = props;
 
-  const forceUpdate = useForceUpdate();
+    const forceUpdate = useForceUpdate();
+    const updatingRef = useRef(false);
+    const previousStateRef = useRef(null);
+    const rootRef = useRef();
+    const prevRef = useRef();
+    const currentRef = useRef();
 
-  const updatingRef = useRef(false);
-  const previousStateRef = useRef(null);
-  const rootRef = useRef();
-  const prevRef = useRef();
-  const currentRef = useRef();
+    const findStateElement = name => {
+      const childrenArray = React.Children.toArray(children);
+      return childrenArray.find(child => child.props.name === name);
+    };
 
-  const findStateElement = name => {
-    const childrenArray = React.Children.toArray(children);
-    return childrenArray.find(child => child.props.name === name);
-  };
+    const renderPrevState = () => {
+      if (previousStateRef.current === state) {
+        return null;
+      }
+      const stateElement = findStateElement(previousStateRef.current);
+      return stateElement
+        ? React.cloneElement(stateElement, { ref: prevRef })
+        : null;
+    };
 
-  const renderPrevState = () => {
-    if (previousStateRef.current === state) {
+    const renderCurrentState = () => {
+      const stateElement = findStateElement(state);
+      return stateElement
+        ? React.cloneElement(stateElement, { ref: currentRef })
+        : null;
+    };
+
+    useLayoutEffect(() => {
+      const prevState = previousStateRef.current;
+      previousStateRef.current = state;
+
+      if (!animateOnMount && !updatingRef.current) {
+        updatingRef.current = true;
+        return;
+      }
+
+      const prevHeight = prevRef.current ? prevRef.current.offsetHeight : 0;
+      const currentHeight = currentRef.current
+        ? currentRef.current.offsetHeight
+        : 0;
+
+      onAnimateStart(prevState, state, prevRef.current, currentRef.current);
+
+      animateRoot(rootRef, prevHeight, currentHeight, duration, () => {
+        previousStateRef.current = state;
+        onAnimateEnd(prevState, state, prevRef.current, currentRef.current);
+        forceUpdate();
+      });
+
+      animatePrev(prevRef, duration);
+
+      animateCurrent(currentRef, prevHeight, duration);
+    }, [
+      animateOnMount,
+      state,
+      duration,
+      forceUpdate,
+      onAnimateStart,
+      onAnimateEnd
+    ]);
+
+    const handleRef = useCallback(
+      elem => {
+        rootRef.current = elem;
+        if (ref) {
+          ref.current = elem;
+        }
+      },
+      [ref]
+    );
+
+    if (state === null && previousStateRef.current === null) {
       return null;
     }
-    const stateElement = findStateElement(previousStateRef.current);
-    return stateElement
-      ? React.cloneElement(stateElement, { ref: prevRef })
-      : null;
-  };
 
-  const renderCurrentState = () => {
-    const stateElement = findStateElement(state);
-    return stateElement
-      ? React.cloneElement(stateElement, { ref: currentRef })
-      : null;
-  };
-
-  useLayoutEffect(() => {
-    const prevState = previousStateRef.current;
-    previousStateRef.current = state;
-
-    if (!animateOnMount && !updatingRef.current) {
-      updatingRef.current = true;
-      return;
-    }
-
-    const prevHeight = prevRef.current ? prevRef.current.offsetHeight : 0;
-    const currentHeight = currentRef.current
-      ? currentRef.current.offsetHeight
-      : 0;
-
-    onAnimateStart(prevState, state);
-
-    animateRoot(rootRef, prevHeight, currentHeight, duration, () => {
-      previousStateRef.current = state;
-      onAnimateEnd(prevState, state);
-      forceUpdate();
-    });
-
-    animatePrev(prevRef, duration);
-
-    animateCurrent(currentRef, prevHeight, duration);
-  }, [
-    animateOnMount,
-    state,
-    duration,
-    forceUpdate,
-    onAnimateStart,
-    onAnimateEnd
-  ]);
-
-  if (state === null && previousStateRef.current === null) {
-    return null;
-  }
-
-  return (
-    <div {...others} ref={rootRef}>
-      {renderPrevState()}
-      {renderCurrentState()}
-    </div>
-  );
-});
+    return (
+      <div {...others} ref={handleRef}>
+        {renderPrevState()}
+        {renderCurrentState()}
+      </div>
+    );
+  })
+);
 
 AnimatingStates.propTypes = {
   animateOnMount: PropTypes.bool,
